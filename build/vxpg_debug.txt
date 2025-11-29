@@ -1,0 +1,175 @@
+
+========== VXPG Debug Info (Frame 1100) ==========
+Grid: 31 x 13 x 19 = 7657 voxels
+Voxels with irradiance > 0: 1418 / 7657 (18.5%)
+Voxels with samples > 0: 1421 / 7657 (18.6%)
+Total irradiance: 730961.250000
+Total samples: 421980
+Max irradiance: 19644.839844
+Max samples: 23028
+Avg irradiance (non-zero): 515.487488
+Avg samples (non-zero): 297.0
+
+First 20 voxels with irradiance:
+  Voxel[1647]: irradiance=0.001551, samples=2
+  Voxel[1648]: irradiance=0.461887, samples=3
+  Voxel[1649]: irradiance=0.817372, samples=2
+  Voxel[1650]: irradiance=0.543765, samples=4
+  Voxel[1652]: irradiance=0.010222, samples=3
+  Voxel[1653]: irradiance=0.902132, samples=3
+  Voxel[1654]: irradiance=0.890723, samples=2
+  Voxel[1655]: irradiance=0.142192, samples=1
+  Voxel[1656]: irradiance=0.835304, samples=2
+  Voxel[1657]: irradiance=0.283508, samples=3
+  Voxel[1658]: irradiance=0.373163, samples=1
+  Voxel[1660]: irradiance=0.018551, samples=1
+  Voxel[1662]: irradiance=0.753812, samples=1
+  Voxel[1663]: irradiance=0.024119, samples=1
+  Voxel[1664]: irradiance=0.006156, samples=1
+  Voxel[1665]: irradiance=0.878482, samples=2
+  Voxel[1666]: irradiance=0.007398, samples=1
+  Voxel[1667]: irradiance=0.001219, samples=1
+  Voxel[1678]: irradiance=0.657685, samples=3
+  Voxel[1679]: irradiance=0.100510, samples=6
+================================================
+
+
+========== VXPG Debug Info (Frame 1200) ==========
+Grid: 31 x 13 x 19 = 7657 voxels
+Voxels with irradiance > 0: 1420 / 7657 (18.5%)
+Voxels with samples > 0: 1420 / 7657 (18.5%)
+Total irradiance: 723887.187500
+Total samples: 418438
+Max irradiance: 19450.625000
+Max samples: 22813
+Avg irradiance (non-zero): 509.779724
+Avg samples (non-zero): 294.7
+
+First 20 voxels with irradiance:
+  Voxel[1647]: irradiance=0.000005, samples=1
+  Voxel[1648]: irradiance=0.166725, samples=6
+  Voxel[1650]: irradiance=1.926163, samples=7
+  Voxel[1651]: irradiance=0.028500, samples=2
+  Voxel[1652]: irradiance=0.011903, samples=2
+  Voxel[1653]: irradiance=0.279773, samples=2
+  Voxel[1654]: irradiance=0.000080, samples=1
+  Voxel[1655]: irradiance=0.591323, samples=1
+  Voxel[1656]: irradiance=0.982017, samples=4
+  Voxel[1657]: irradiance=0.570397, samples=1
+  Voxel[1658]: irradiance=0.001697, samples=2
+  Voxel[1659]: irradiance=0.302339, samples=1
+  Voxel[1661]: irradiance=0.325353, samples=2
+  Voxel[1662]: irradiance=0.039173, samples=2
+  Voxel[1664]: irradiance=0.000028, samples=1
+  Voxel[1665]: irradiance=0.008144, samples=1
+  Voxel[1678]: irradiance=0.035769, samples=2
+  Voxel[1679]: irradiance=1.094996, samples=7
+  Voxel[1680]: irradiance=0.006832, samples=1
+  Voxel[1681]: irradiance=5.917737, samples=12
+================================================
+
+
+========== VXPG Debug Info (Frame 1300) ==========
+Grid: 31 x 13 x 19 = 7657 voxels
+Voxels with irradiance > 0: 1411 / 7657 (18.4%)
+Voxels with samples > 0: 1412 / 7657 (18.4%)
+Total irradiance: 730903.812500
+Total samples: 420408
+Max irradiance: 20321.294922
+Max samples: 22923
+Avg irradiance (non-zero): 518.004089
+Avg samples (non-zero): 297.7
+
+First 20 voxels with irradiance:
+  Voxel[1647]: irradiance=0.122557, samples=3
+  Voxel[1648]: irradiance=0.002101, samples=1
+  Voxel[1649]: irradiance=0.031738, samples=2
+  Voxel[1650]: irradiance=0.045125, samples=3
+  Voxel[1651]: irradiance=0.969899, samples=3
+  Voxel[1652]: irradiance=0.817065, samples=5
+  Voxel[1653]: irradiance=1.600440, samples=3
+  Voxel[1654]: irradiance=0.729512, samples=1
+  Voxel[1656]: irradiance=0.047072, samples=1
+  Voxel[1657]: irradiance=0.831553, samples=3
+  Voxel[1658]: irradiance=0.948789, samples=2
+  Voxel[1659]: irradiance=0.001934, samples=1
+  Voxel[1660]: irradiance=0.254918, samples=2
+  Voxel[1678]: irradiance=0.636837, samples=4
+  Voxel[1679]: irradiance=0.051771, samples=2
+  Voxel[1680]: irradiance=1.280164, samples=3
+  Voxel[1681]: irradiance=1.983070, samples=6
+  Voxel[1682]: irradiance=0.013902, samples=4
+  Voxel[1683]: irradiance=0.043020, samples=2
+  Voxel[1684]: irradiance=0.555186, samples=1
+================================================
+
+
+========== VXPG Debug Info (Frame 1400) ==========
+Grid: 31 x 13 x 19 = 7657 voxels
+Voxels with irradiance > 0: 1434 / 7657 (18.7%)
+Voxels with samples > 0: 1434 / 7657 (18.7%)
+Total irradiance: 728905.812500
+Total samples: 420634
+Max irradiance: 20619.857422
+Max samples: 22975
+Avg irradiance (non-zero): 508.302521
+Avg samples (non-zero): 293.3
+
+First 20 voxels with irradiance:
+  Voxel[1647]: irradiance=0.021050, samples=1
+  Voxel[1648]: irradiance=0.000131, samples=3
+  Voxel[1650]: irradiance=0.003220, samples=3
+  Voxel[1651]: irradiance=0.793587, samples=4
+  Voxel[1652]: irradiance=0.839325, samples=2
+  Voxel[1653]: irradiance=1.456024, samples=2
+  Voxel[1654]: irradiance=0.001036, samples=1
+  Voxel[1656]: irradiance=0.964911, samples=1
+  Voxel[1657]: irradiance=0.008038, samples=1
+  Voxel[1658]: irradiance=0.600529, samples=2
+  Voxel[1659]: irradiance=0.001730, samples=1
+  Voxel[1660]: irradiance=0.277315, samples=1
+  Voxel[1663]: irradiance=0.001322, samples=1
+  Voxel[1678]: irradiance=0.087674, samples=2
+  Voxel[1679]: irradiance=0.026414, samples=2
+  Voxel[1680]: irradiance=2.101815, samples=7
+  Voxel[1681]: irradiance=0.022140, samples=7
+  Voxel[1682]: irradiance=1.418965, samples=6
+  Voxel[1683]: irradiance=0.000827, samples=3
+  Voxel[1684]: irradiance=0.051773, samples=3
+================================================
+
+
+========== VXPG Debug Info (Frame 1500) ==========
+Grid: 31 x 13 x 19 = 7657 voxels
+Voxels with irradiance > 0: 1443 / 7657 (18.8%)
+Voxels with samples > 0: 1443 / 7657 (18.8%)
+Total irradiance: 726362.125000
+Total samples: 421186
+Max irradiance: 19804.792969
+Max samples: 22955
+Avg irradiance (non-zero): 503.369446
+Avg samples (non-zero): 291.9
+
+First 20 voxels with irradiance:
+  Voxel[1647]: irradiance=0.000694, samples=1
+  Voxel[1648]: irradiance=0.052600, samples=1
+  Voxel[1649]: irradiance=0.026968, samples=1
+  Voxel[1650]: irradiance=0.813323, samples=5
+  Voxel[1651]: irradiance=0.048306, samples=3
+  Voxel[1652]: irradiance=0.036403, samples=4
+  Voxel[1653]: irradiance=0.191161, samples=1
+  Voxel[1655]: irradiance=0.000056, samples=1
+  Voxel[1656]: irradiance=0.077341, samples=3
+  Voxel[1657]: irradiance=0.625864, samples=3
+  Voxel[1658]: irradiance=0.008443, samples=1
+  Voxel[1659]: irradiance=0.024870, samples=1
+  Voxel[1662]: irradiance=0.014498, samples=1
+  Voxel[1665]: irradiance=0.653536, samples=1
+  Voxel[1666]: irradiance=0.550456, samples=1
+  Voxel[1678]: irradiance=1.330641, samples=3
+  Voxel[1679]: irradiance=0.104305, samples=2
+  Voxel[1680]: irradiance=1.472595, samples=7
+  Voxel[1681]: irradiance=0.649007, samples=9
+  Voxel[1682]: irradiance=0.973858, samples=7
+================================================
+

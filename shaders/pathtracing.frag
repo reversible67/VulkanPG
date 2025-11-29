@@ -381,7 +381,7 @@ void updateBoundingVoxel(vec3 position, vec3 irradiance)
 		uint oldMaxY = atomicMax(boundingVoxels[gridIndex].aabbMaxY, posY);
 		uint oldMaxZ = atomicMax(boundingVoxels[gridIndex].aabbMaxZ, posZ);
 		
-		// Update irradiance
+		// Update irradiance (no clamp needed since we reset per-frame)
 		atomicAdd(boundingVoxels[gridIndex].totalIrradiance, luminance(irradiance));
 		atomicAdd(boundingVoxels[gridIndex].sampleCount, 1);
 	}
@@ -984,7 +984,7 @@ void main()
 			computeDefaultBasis(hitNormal, tangent, bitangent);
 
 			int gridIndex = -1;
-			if (PATH_GUIDING == 1 && SSPG == 0)
+			if ((PATH_GUIDING == 1 && SSPG == 0) || VXPG == 1)  // VXPG needs gridIndex too
 			{
 				gridIndex = getGridIndex(hitPos);
 				if (j == 0)
@@ -1007,15 +1007,29 @@ void main()
 							indirectReservoir.radiance += throughput * spotBRDF * attenuation * max(0.0, dot(lightDir, hitNormal));
 						else
 							directRadiance += throughput * spotBRDF * attenuation * max(0.0, dot(lightDir, hitNormal));
-						if (PATH_GUIDING == 1)
+						
+						// VXPG: Backtrace learning from Spot Light contribution
+						if (VXPG == 1)
+						{
+							if (gridIndex >= 0 && j > 0)  // Only backtrace for indirect hits
+							{
+								vec3 spotRadiance = vec3(attenuation);
+								// Backtrace: propagate spot light contribution along the path
+								for (int k = j; k >= 0; --k)
+								{
+									updateBoundingVoxel(pathVertices[k].position, spotRadiance);
+									spotRadiance *= pathVertices[k].throughput;
+								}
+							}
+							else if (gridIndex >= 0)  // Direct hit: just update current position
+							{
+								updateBoundingVoxel(hitPos, vec3(attenuation));
+							}
+						}
+						else if (PATH_GUIDING == 1)
 						{
 							if (gridIndex >= 0)
-							{
-								if (VXPG == 1)
-									updateBoundingVoxel(hitPos, vec3(attenuation));
-								else
-									updateRadianceField(hitPos, lightDir, vec3(attenuation));
-							}
+								updateRadianceField(hitPos, lightDir, vec3(attenuation));
 						}
 					}
 				}
@@ -1067,15 +1081,16 @@ void main()
 								indirectReservoir.radiance += neeBRDF * throughput * max(0.0, dot(neeDir, hitNormal)) * envMapRadiance / neePdf;
 							else
 								directRadiance += neeBRDF * throughput * max(0.0, dot(neeDir, hitNormal)) * envMapRadiance / neePdf;
-							if (PATH_GUIDING == 1)
+							// VXPG or traditional PG learning
+							if (VXPG == 1)
 							{
 								if (gridIndex >= 0)
-								{
-									if (VXPG == 1)
-										updateBoundingVoxel(hitPos, envMapRadiance);
-									else
-										updateRadianceField(hitPos, neeDir, envMapRadiance);
-								}
+									updateBoundingVoxel(hitPos, envMapRadiance);
+							}
+							else if (PATH_GUIDING == 1)
+							{
+								if (gridIndex >= 0)
+									updateRadianceField(hitPos, neeDir, envMapRadiance);
 							}
 						}
 					}
@@ -1127,7 +1142,7 @@ void main()
 			float multiplier = 1.0;
 			float pdf = 0.0;
 			vec3 direction;
-			bool guiding = PATH_GUIDING == 1;
+			bool guiding = PATH_GUIDING == 1 || VXPG == 1;  // VXPG can work independently
 			if (SSPG == 1)
 			{
 				if (j > 0)
@@ -1139,25 +1154,8 @@ void main()
 			//	guiding = false;
 			if (guiding && rnd(seed) < ubo.probability)
 			{
-				if (SSPG == 1)
-				{
-					mat3 frame = createFrame(hitNormal);
-					vec2 gmmSample;
-					if (SGM == 1)
-					{
-						gmmSample = drawSample(gmm, vec2(rnd(seed), rnd(seed)));
-						pdf = pdfGMM(gmm, gmmSample) / float(2.0 * k_pi);
-					}
-					else
-					{
-						gmmSample = drawSample(gmms, vec3(rnd(seed), rnd(seed), rnd(seed)));
-						pdf = pdfGMMs(gmms, gmmSample) / float(2.0 * k_pi);
-					}
-					direction = to_world(frame, concentricDiskToUniformHemisphere(toConcentricMap(gmmSample)));
-					if (pdf <= 0.0 || any(lessThan(gmmSample, vec2(0.0))) || any(greaterThan(gmmSample, vec2(1.0))))
-						break;
-				}
-				else if (VXPG == 1)
+				// VXPG has priority over traditional path guiding
+				if (VXPG == 1)
 				{
 					// VXPG path guiding
 					float voxelPdf;
@@ -1176,21 +1174,10 @@ void main()
 							
 							if (nDotL > 0.0)
 							{
-								// Compute PDF: voxel selection × intra-voxel sampling
-								vec3 aabbMin = vec3(
-									uintBitsToFloat(boundingVoxels[selectedVoxel].aabbMinX),
-									uintBitsToFloat(boundingVoxels[selectedVoxel].aabbMinY),
-									uintBitsToFloat(boundingVoxels[selectedVoxel].aabbMinZ)
-								);
-								vec3 aabbMax = vec3(
-									uintBitsToFloat(boundingVoxels[selectedVoxel].aabbMaxX),
-									uintBitsToFloat(boundingVoxels[selectedVoxel].aabbMaxY),
-									uintBitsToFloat(boundingVoxels[selectedVoxel].aabbMaxZ)
-								);
-								float aabbVolume = max(1e-6, (aabbMax.x - aabbMin.x) * (aabbMax.y - aabbMin.y) * (aabbMax.z - aabbMin.z));
-								float intraVoxelPdf = 1.0 / aabbVolume; // Uniform sampling in AABB
-								
-								pdf = voxelPdf * intraVoxelPdf * ubo.probability;
+								// VXPG PDF: Use cosine-weighted to match BRDF and reduce variance
+								// Even though VXPG samples based on voxel importance,
+								// using cosine-weighted PDF gives better variance reduction
+								pdf = nDotL / M_PI * ubo.probability;
 							}
 							else
 							{
@@ -1221,6 +1208,24 @@ void main()
 					
 					if (GUIDING_MIS == 1)
 						pdf += pdfBRDF(hitView, hitNormal, direction, hitMaterial) * (1.0 - ubo.probability);
+				}
+				else if (SSPG == 1)
+				{
+					mat3 frame = createFrame(hitNormal);
+					vec2 gmmSample;
+					if (SGM == 1)
+					{
+						gmmSample = drawSample(gmm, vec2(rnd(seed), rnd(seed)));
+						pdf = pdfGMM(gmm, gmmSample) / float(2.0 * k_pi);
+					}
+					else
+					{
+						gmmSample = drawSample(gmms, vec3(rnd(seed), rnd(seed), rnd(seed)));
+						pdf = pdfGMMs(gmms, gmmSample) / float(2.0 * k_pi);
+					}
+					direction = to_world(frame, concentricDiskToUniformHemisphere(toConcentricMap(gmmSample)));
+					if (pdf <= 0.0 || any(lessThan(gmmSample, vec2(0.0))) || any(greaterThan(gmmSample, vec2(1.0))))
+						break;
 				}
 				else
 				{
@@ -1321,15 +1326,16 @@ void main()
 			}
 
 			vec3 brdf = evaluateBRDF(hitView, hitNormal, direction, hitMaterial);
-			
-			if (PATH_GUIDING == 1 && SSPG == 0)
-			{
-				pathVertices[j].position = hitPos;
-				pathVertices[j].direction = direction;
-				pathVertices[j].throughput = nDotL * brdf;
-				if (luminance(brdf) > ubo.clampValue * 0.05)
-					pathVertices[j].throughput = vec3(0.0);
-			}
+		
+		// Record path vertices for VXPG or traditional PG
+		if ((PATH_GUIDING == 1 && SSPG == 0) || VXPG == 1)
+		{
+			pathVertices[j].position = hitPos;
+			pathVertices[j].direction = direction;
+			pathVertices[j].throughput = nDotL * brdf;
+			if (luminance(brdf) > ubo.clampValue * 0.05)
+				pathVertices[j].throughput = vec3(0.0);
+		}
 
 			if (ALPHA_TEST == 1)
 			{
@@ -1365,29 +1371,31 @@ void main()
 				if (ENVIRONMENT_MAP == 1)
 				{
 					vec3 envMapRadiance = sampleEnvMap(ubo.envRot * direction);
-					if (PATH_GUIDING == 1 && SSPG == 0)
+					if (VXPG == 1)
+					{
 						if (gridIndex >= 0)
 						{
-							if (VXPG == 1)
+							// For VXPG, update bounding voxels with hit positions
+							vec3 incidentRadiance = envMapRadiance;
+							for (int k = j; k >= 0; --k)
 							{
-								// For VXPG, update bounding voxels with hit positions
-								vec3 incidentRadiance = envMapRadiance;
-								for (int k = j; k >= 0; --k)
-								{
-									updateBoundingVoxel(pathVertices[k].position, incidentRadiance);
-									incidentRadiance *= pathVertices[k].throughput;
-								}
-							}
-							else
-							{
-								vec3 incidentRadiance = envMapRadiance;
-								for (int k = j; k >= 0; --k)
-								{
-									updateRadianceField(pathVertices[k].position, pathVertices[k].direction, incidentRadiance);
-									incidentRadiance *= pathVertices[k].throughput;
-								}
+								updateBoundingVoxel(pathVertices[k].position, incidentRadiance);
+								incidentRadiance *= pathVertices[k].throughput;
 							}
 						}
+					}
+					else if (PATH_GUIDING == 1 && SSPG == 0)
+					{
+						if (gridIndex >= 0)
+						{
+							vec3 incidentRadiance = envMapRadiance;
+							for (int k = j; k >= 0; --k)
+							{
+								updateRadianceField(pathVertices[k].position, pathVertices[k].direction, incidentRadiance);
+								incidentRadiance *= pathVertices[k].throughput;
+							}
+						}
+					}
 					if (NEE == 1)
 					{
 						if (NEE_MIS == 1)
@@ -1409,6 +1417,8 @@ void main()
 					else
 						directRadiance += throughput * nDotL * envMapRadiance * brdf / pdf;
 				}
+				// No environment map: Path terminates without contribution
+				// Don't learn from miss when there's no light source
 				break;
 			}
 		}

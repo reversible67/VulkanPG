@@ -200,6 +200,7 @@ public:
 		vks::Buffer previousIndirectReservoirs;
 		vks::Buffer incidentRadianceGrid;
 		vks::Buffer boundingVoxels;
+		vks::Buffer voxelDebugStaging;  // Debug: staging buffer for reading voxel data
 		vks::Buffer gmmStatisticsPack0;
 		vks::Buffer gmmStatisticsPack1;
 		vks::Buffer gmmStatisticsPack0Prev;
@@ -361,6 +362,8 @@ public:
 		storageBuffers.materialIndices.destroy();
 		storageBuffers.incidentRadianceGrid.destroy();
 		storageBuffers.boundingVoxels.destroy();
+		if (storageBuffers.voxelDebugStaging.buffer != VK_NULL_HANDLE)
+			storageBuffers.voxelDebugStaging.destroy();
 
 		textures.envMap.destroy();
 		textures.envHDRCache.destroy();
@@ -1154,7 +1157,7 @@ public:
 		printf("%d %d %d\n", pushConstants.gridDim.x, pushConstants.gridDim.y, pushConstants.gridDim.z);
 
 		createBuffer(storageBuffers.incidentRadianceGrid, pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z * sizeof(IncidentRadianceGridCell), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-		createBuffer(storageBuffers.boundingVoxels, pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z * sizeof(BoundingVoxel), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		createBuffer(storageBuffers.boundingVoxels, pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z * sizeof(BoundingVoxel), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);  // Add TRANSFER_SRC for debug reading
 	
 		createBuffer(storageBuffers.gmmStatisticsPack0, width * height * pushConstants.lobeCount * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 		createBuffer(storageBuffers.gmmStatisticsPack1, width * height * pushConstants.lobeCount * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -1415,6 +1418,13 @@ public:
 
 			if (specializationData.vxpg == 1)
 			{
+				// VXPG: Reset voxel data at the start of each frame (per-frame learning)
+				dispatchCompute(compute.pipelines.resetVXPG, glm::uvec3((pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z + 63u) / 64, 1, 1), -1);
+				
+				// Memory barrier: ensure reset completes before prepare
+				addMemoryBarrier(VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+				                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+				
 				// VXPG prepare
 				dispatchCompute(compute.pipelines.prepareVXPG, glm::uvec3((pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z + 63u) / 64, 1, 1), 0);
 			}
@@ -1987,7 +1997,7 @@ public:
 		VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
 		VkSubmitInfo computeSubmitInfo = vks::initializers::submitInfo();
-		if (specializationData.pathGuiding)
+		if (specializationData.pathGuiding || specializationData.vxpg)
 		{
 			computeSubmitInfo.commandBufferCount = 1;
 			//也可以else用空command buffer
@@ -2298,6 +2308,104 @@ public:
 		VK_CHECK_RESULT(vkQueueWaitIdle(queue));
 	}
 
+	// Debug: Print VXPG voxel data to check if it's learning
+	void debugPrintVoxelData()
+	{
+		if (specializationData.vxpg == 0) {
+			printf("[VXPG Debug] VXPG is not enabled\n");
+			return;
+		}
+
+		// Create staging buffer if not exists
+		VkDeviceSize bufferSize = pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z * sizeof(BoundingVoxel);
+		if (storageBuffers.voxelDebugStaging.buffer == VK_NULL_HANDLE)
+		{
+			createBuffer(storageBuffers.voxelDebugStaging, bufferSize, 
+				VK_BUFFER_USAGE_TRANSFER_DST_BIT, 
+				VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		}
+
+		// Copy data from device to staging buffer
+		VkCommandBuffer copyCmd = vulkanDevice->createCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, true);
+		VkBufferCopy copyRegion = {};
+		copyRegion.size = bufferSize;
+		vkCmdCopyBuffer(copyCmd, storageBuffers.boundingVoxels.buffer, storageBuffers.voxelDebugStaging.buffer, 1, &copyRegion);
+		vulkanDevice->flushCommandBuffer(copyCmd, queue);
+
+		// Map and read data
+		BoundingVoxel* voxels = nullptr;
+		VK_CHECK_RESULT(vkMapMemory(device, storageBuffers.voxelDebugStaging.memory, 0, bufferSize, 0, (void**)&voxels));
+
+		// Statistics
+		int totalVoxels = pushConstants.gridDim.x * pushConstants.gridDim.y * pushConstants.gridDim.z;
+		int nonZeroIrradiance = 0;
+		int nonZeroSampleCount = 0;
+		float totalIrradiance = 0.0f;
+		int totalSamples = 0;
+		float maxIrradiance = 0.0f;
+		int maxSamples = 0;
+
+		for (int i = 0; i < totalVoxels; i++) {
+			if (voxels[i].totalIrradiance > 0.0f) {
+				nonZeroIrradiance++;
+				totalIrradiance += voxels[i].totalIrradiance;
+				if (voxels[i].totalIrradiance > maxIrradiance)
+					maxIrradiance = voxels[i].totalIrradiance;
+			}
+			if (voxels[i].sampleCount > 0) {
+				nonZeroSampleCount++;
+				totalSamples += voxels[i].sampleCount;
+				if (voxels[i].sampleCount > maxSamples)
+					maxSamples = voxels[i].sampleCount;
+			}
+		}
+
+		// Open file for writing (append mode)
+		FILE* file = fopen("vxpg_debug.txt", "a");
+		if (!file) {
+			printf("[VXPG Debug] Failed to open vxpg_debug.txt for writing\n");
+			vkUnmapMemory(device, storageBuffers.voxelDebugStaging.memory);
+			return;
+		}
+
+		// Write to file instead of console
+		fprintf(file, "\n========== VXPG Debug Info (Frame %d) ==========\n", frameNumber);
+		fprintf(file, "Grid: %d x %d x %d = %d voxels\n", 
+			pushConstants.gridDim.x, pushConstants.gridDim.y, pushConstants.gridDim.z, totalVoxels);
+		fprintf(file, "Voxels with irradiance > 0: %d / %d (%.1f%%)\n", 
+			nonZeroIrradiance, totalVoxels, 100.0f * nonZeroIrradiance / totalVoxels);
+		fprintf(file, "Voxels with samples > 0: %d / %d (%.1f%%)\n", 
+			nonZeroSampleCount, totalVoxels, 100.0f * nonZeroSampleCount / totalVoxels);
+		fprintf(file, "Total irradiance: %.6f\n", totalIrradiance);
+		fprintf(file, "Total samples: %d\n", totalSamples);
+		fprintf(file, "Max irradiance: %.6f\n", maxIrradiance);
+		fprintf(file, "Max samples: %d\n", maxSamples);
+		if (nonZeroIrradiance > 0)
+			fprintf(file, "Avg irradiance (non-zero): %.6f\n", totalIrradiance / nonZeroIrradiance);
+		if (nonZeroSampleCount > 0)
+			fprintf(file, "Avg samples (non-zero): %.1f\n", (float)totalSamples / nonZeroSampleCount);
+
+		// Print first 20 voxels with data
+		fprintf(file, "\nFirst 20 voxels with irradiance:\n");
+		int printed = 0;
+		for (int i = 0; i < totalVoxels && printed < 20; i++) {
+			if (voxels[i].totalIrradiance > 0.0f || voxels[i].sampleCount > 0) {
+				fprintf(file, "  Voxel[%d]: irradiance=%.6f, samples=%d\n", 
+					i, voxels[i].totalIrradiance, voxels[i].sampleCount);
+				printed++;
+			}
+		}
+		fprintf(file, "================================================\n\n");
+
+		fclose(file);
+		
+		// Also print a brief summary to console
+		printf("[VXPG Debug Frame %d] Saved to vxpg_debug.txt - Irradiance: %.3f, Samples: %d, Active voxels: %.1f%%\n",
+			frameNumber, totalIrradiance, totalSamples, 100.0f * nonZeroSampleCount / totalVoxels);
+
+		vkUnmapMemory(device, storageBuffers.voxelDebugStaging.memory);
+	}
+
 	void render() override
 	{
 		if (!prepared)
@@ -2310,6 +2418,12 @@ public:
 		updateUniformBufferGBuffer();
 
 		draw();
+		
+		// Debug: Print VXPG data every 100 frames
+		if (specializationData.vxpg && frameNumber > 0 && frameNumber % 100 == 0)
+		{
+			debugPrintVoxelData();
+		}
 		
 		if (uboComposition.screenshot)
 		{
