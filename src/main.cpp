@@ -23,7 +23,7 @@ public:
 		int modelIndex;
 		glm::vec3 gridBegin;
 		glm::ivec3 gridDim;
-		float cellSize = 0.5f;
+		float cellSize = 1.0f;
 		int lobeCount = 4;
 		float exponentialFactor = 0.7f;
 	} pushConstants;
