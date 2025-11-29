@@ -1,0 +1,69 @@
+#version 460
+
+layout (local_size_x = 8) in;
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "raycommon.glsl"
+
+layout (push_constant, scalar) uniform PushConstants
+{
+	int modelIndex;
+	vec3 gridBegin;
+	ivec3 gridDim;
+	float cellSize;
+};
+
+layout (binding = 1, scalar) buffer IncidentRadianceGrid { IncidentRadianceGridCell incidentRadianceGridCells[]; };
+
+void main()
+{
+	// 当前工作的索引
+	uint cellIndex = gl_GlobalInvocationID.x;
+	if (cellIndex >= gridDim.x * gridDim.y * gridDim.z)
+		return;
+
+	float incidentRadiance[INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE];
+	float cdf[INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE];
+	
+	// 先计算radiance
+	for (int y = 0; y < INCIDENT_RADIANCE_MAP_SIZE; ++y)
+		for (int x = 0; x < INCIDENT_RADIANCE_MAP_SIZE; ++x)
+		{
+			uint index = y * INCIDENT_RADIANCE_MAP_SIZE + x;
+			uint count = incidentRadianceGridCells[cellIndex].incidentRadianceCount[index];
+			if (count > 0)
+				incidentRadiance[index] = incidentRadianceGridCells[cellIndex].incidentRadianceSum[index] / count;
+			else
+				incidentRadiance[index] = 0.0;
+		}
+	
+	cdf[0] = incidentRadiance[0];
+	float total = incidentRadiance[0];
+	// cdf
+	for(int i = 1; i < INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE; ++i)
+	{
+		cdf[i] = cdf[i - 1] + incidentRadiance[i];
+		total += incidentRadiance[i];
+	}
+	float mean = total / (INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE);
+
+	// 归一化
+	if (total > 0.0) {
+		for (int i = 0; i < INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE; ++i) {
+			cdf[i] /= total;
+			incidentRadiance[i] /= mean;
+		}
+	}
+	else {
+		for (int i = 0; i < INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE; ++i) {
+			cdf[i] = 0.0;
+		}
+	}
+
+	for (int i = 0; i < INCIDENT_RADIANCE_MAP_SIZE * INCIDENT_RADIANCE_MAP_SIZE; ++i)
+	{
+		incidentRadianceGridCells[cellIndex].cdf[i] = cdf[i];
+		incidentRadianceGridCells[cellIndex].incidentRadiance[i] = incidentRadiance[i];
+	}
+}

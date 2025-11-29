@@ -1,0 +1,119 @@
+#version 460
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "raycommon.glsl"
+#include "gmm.glsl"
+#include "concentric.glsl"
+
+layout (push_constant, scalar) uniform PushConstants
+{
+	int modelIndex;
+	vec3 gridBegin;
+	ivec3 gridDim;
+	float cellSize;
+	int lobeCount;
+	float exponentialFactor;
+};
+
+layout (binding = 2, scalar) buffer GMMStatisticsPack0 { vec4 gmmStatisticsPack0[]; };
+layout (binding = 3, scalar) buffer GMMStatisticsPack1 { vec4 gmmStatisticsPack1[]; };
+layout (binding = 4, scalar) buffer readonly VPLs { vec4 vpls[]; };
+layout (binding = 5) uniform sampler2D samplerPosition;
+layout (binding = 6) uniform sampler2D samplerNormal;
+
+shared vec4 localVPLs[20][20];
+//shared vec4 localGeometry[20][20];
+
+bool validate(uvec2 index, uvec2 resolution)
+{
+    return all(greaterThanEqual(index, uvec2(0))) && all(lessThan(index, resolution));
+}
+
+void updateGMM(float sumWeight, vec2 square_coord, inout vec4 pack0, inout vec4 pack1)
+{
+    uint epoch_count = uint(pack1.z);
+    if (sumWeight > 0)
+	{
+        epoch_count = clamp(epoch_count, 0, 10);
+        // exponential smoothing vMF
+        float alpha = pow(exponentialFactor, epoch_count);
+        vec4 new_pack0 = sumWeight * vec4(square_coord.x, square_coord.y, square_coord.x * square_coord.x, square_coord.y * square_coord.y);
+        vec2 new_pack1 = sumWeight * vec2(square_coord.x * square_coord.y, 1);
+        vec4 update_pack0 = smoothstep(pack0, new_pack0, vec4(alpha));
+        vec2 update_pack1 = smoothstep(pack1.xy, new_pack1, vec2(alpha));
+        epoch_count += 1;
+        pack0 = update_pack0;
+        pack1 = vec4(update_pack1, epoch_count, 0);
+    }
+}
+
+void main()
+{
+	uvec2 pixel = gl_GlobalInvocationID.xy;
+	uvec2 group = gl_LocalInvocationID.xy;
+
+	uvec2 resolution = textureSize(samplerNormal, 0);
+
+	// First load 20 x 20 the vpls into shared memory
+	// The offset indicate the left-top element position
+	uvec2 offset = gl_WorkGroupID.xy * 16 - 2;
+	if (gl_LocalInvocationIndex < 200)
+	{
+		uvec2 flatten = uvec2(gl_LocalInvocationIndex % 20, gl_LocalInvocationIndex / 20);
+		{
+			// First half of the group
+			uvec2 index_0 = offset + flatten;
+			vec4 vpl_0 = validate(index_0, resolution) ? vpls[index_0.y * resolution.x + index_0.x] : vec4(0.0);
+			//vec4 geometry_0 = vec4(0.0);
+			//if (validate(index_0))
+			//{
+			//	const ShadingSurface surface = GetGBufferSurface(index_0, globalUniform.cameraData);
+			//	geometry_0 = float4(surface.geometryNormal, surface.viewDepth);
+			//}
+			localVPLs[flatten.x][flatten.y] = vpl_0;
+			//localGeometry[flatten.x][flatten.y] = geometry_0;
+		}
+		{
+			// Second half of the group
+			uvec2 index_1 = offset + flatten + uvec2(0, 10);
+			vec4 vpl_1 = validate(index_1, resolution) ? vpls[index_1.y * resolution.x + index_1.x] : vec4(0.0);
+			//vec4 geometry_1 = vec4(0.0);
+			//if (validate(index_1))
+			//{
+			//	const ShadingSurface surface = GetGBufferSurface(index_1, globalUniform.cameraData);
+			//	geometry_1 = float4(surface.geometryNormal, surface.viewDepth);
+			//}
+			localVPLs[flatten.x][flatten.y + 10] = vpl_1;
+			//localGeometry[flatten.x][flatten.y] = geometry_1;
+		}
+	}
+    
+	memoryBarrierShared();
+
+	uvec2 center_xy = group + uvec2(2);
+	vec3 position = texelFetch(samplerPosition, ivec2(pixel), 0).xyz;
+	vec3 normal = texelFetch(samplerPosition, ivec2(pixel), 0).xyz;
+	//const ShadingSurface center_surface = GetGBufferSurface(pixel, globalUniform.cameraData);
+	//if (!IsShadingSurfaceValid(center_surface))
+	//	return;
+
+	uint index = pixel.y * resolution.x + pixel.x;
+
+	vec4 pack0 = gmmStatisticsPack0[index];
+    vec4 pack1 = gmmStatisticsPack1[index];
+
+	mat3 frame = createFrame(normal);
+
+	// First, load the center vpls.
+	vec4 center_vpl = localVPLs[center_xy.x][center_xy.y];
+	vec3 direction = normalize(center_vpl.xyz - position);
+	vec2 square_coord = fromConcentricMap(uniformHemisphereToConcentricDisk(to_local(frame, direction)));
+
+	updateGMM(center_vpl.w, square_coord, pack0, pack1);
+
+	gmmStatisticsPack0[index] = pack0;
+	gmmStatisticsPack1[index] = pack1;
+}

@@ -1,0 +1,34 @@
+#version 460
+
+layout (local_size_x = 64) in;
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "raycommon.glsl"
+
+layout (push_constant, scalar) uniform PushConstants
+{
+	int modelIndex;
+	vec3 gridBegin;
+	ivec3 gridDim;
+	float cellSize;
+};
+
+layout (binding = 7, scalar) buffer BoundingVoxels { BoundingVoxel boundingVoxels[]; };
+
+void main()
+{
+	uint voxelIndex = gl_GlobalInvocationID.x;
+	if (voxelIndex >= gridDim.x * gridDim.y * gridDim.z)
+		return;
+
+	// Normalize the irradiance by sample count
+	if (boundingVoxels[voxelIndex].sampleCount > 0)
+	{
+		boundingVoxels[voxelIndex].totalIrradiance /= float(boundingVoxels[voxelIndex].sampleCount);
+	}
+	else
+	{
+		boundingVoxels[voxelIndex].totalIrradiance = 0.0;
+	}
+}

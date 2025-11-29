@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>15.0</VCProjectVersion>
+    <ProjectGuid>{15985063-0E9C-480A-AF1E-2D0245A716B8}</ProjectGuid>
+    <RootNamespace>VulkanPG</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>VulkanPG</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)..\bin\</OutDir>
+    <LinkIncremental>
+    </LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(VULKAN_SDK)\Include;..\external\opencv\include;..\external\dds_image;..\external\fp16;..\external\glm;..\external\imgui;..\external\tinygltf;..\external\ktx\include;..\external\ktx\other_include;..\external\tinyobjloader;..\base;..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_SILENCE_CXX17_NEGATORS_DEPRECATION_WARNING;WIN32;_WINDOWS;VK_USE_PLATFORM_WIN32_KHR;NOMINMAX;_USE_MATH_DEFINES;NDEBUG;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <OpenMPSupport>true</OpenMPSupport>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <RuntimeTypeInfo>
+      </RuntimeTypeInfo>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>..\external\ktx\lib;..\external\opencv\lib;$(VULKAN_SDK)\Lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>opencv_world440.lib;ktx.lib;vulkan-1.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+    <CustomBuildStep>
+      <Command>
+      </Command>
+    </CustomBuildStep>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\base\VulkanAndroid.cpp" />
+    <ClCompile Include="..\base\VulkanBuffer.cpp" />
+    <ClCompile Include="..\base\VulkanDebug.cpp" />
+    <ClCompile Include="..\base\VulkanDevice.cpp" />
+    <ClCompile Include="..\base\vulkanexamplebase.cpp" />
+    <ClCompile Include="..\base\VulkanglTFModel.cpp" />
+    <ClCompile Include="..\base\VulkanRaytracingSample.cpp" />
+    <ClCompile Include="..\base\VulkanSwapChain.cpp" />
+    <ClCompile Include="..\base\VulkanTexture.cpp" />
+    <ClCompile Include="..\base\VulkanTools.cpp" />
+    <ClCompile Include="..\base\VulkanUIOverlay.cpp" />
+    <ClCompile Include="..\external\imgui\imgui.cpp" />
+    <ClCompile Include="..\external\imgui\imgui_demo.cpp" />
+    <ClCompile Include="..\external\imgui\imgui_draw.cpp" />
+    <ClCompile Include="..\external\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\src\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\base\benchmark.hpp" />
+    <ClInclude Include="..\base\camera.hpp" />
+    <ClInclude Include="..\base\CommandLineParser.hpp" />
+    <ClInclude Include="..\base\frustum.hpp" />
+    <ClInclude Include="..\base\keycodes.hpp" />
+    <ClInclude Include="..\base\threadpool.hpp" />
+    <ClInclude Include="..\base\VulkanAndroid.h" />
+    <ClInclude Include="..\base\VulkanBuffer.h" />
+    <ClInclude Include="..\base\VulkanDebug.h" />
+    <ClInclude Include="..\base\VulkanDevice.h" />
+    <ClInclude Include="..\base\vulkanexamplebase.h" />
+    <ClInclude Include="..\base\VulkanFrameBuffer.hpp" />
+    <ClInclude Include="..\base\VulkanglTFModel.h" />
+    <ClInclude Include="..\base\VulkanHeightmap.hpp" />
+    <ClInclude Include="..\base\VulkanInitializers.hpp" />
+    <ClInclude Include="..\base\VulkanRaytracingSample.h" />
+    <ClInclude Include="..\base\VulkanSwapChain.h" />
+    <ClInclude Include="..\base\VulkanTexture.h" />
+    <ClInclude Include="..\base\VulkanTools.h" />
+    <ClInclude Include="..\base\VulkanUIOverlay.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <GLSLShader Include="..\shaders\blur.frag" />
+    <GLSLShader Include="..\shaders\composition.frag" />
+    <GLSLShader Include="..\shaders\composition.vert" />
+    <GLSLShader Include="..\shaders\fullscreen.vert" />
+    <GLSLShader Include="..\shaders\gbuffer.frag" />
+    <GLSLShader Include="..\shaders\gbuffer.vert" />
+    <GLSLShader Include="..\shaders\learngmm.comp" />
+    <GLSLShader Include="..\shaders\learnsgm.comp">
+      <FileType>Document</FileType>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\pathtracing.frag">
+      <FileType>Document</FileType>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\prepare.comp" />
+    <GLSLShader Include="..\shaders\preparecdf.comp" />
+    <GLSLShader Include="..\shaders\preparevxpg.comp" />
+    <GLSLShader Include="..\shaders\reset.comp" />
+    <GLSLShader Include="..\shaders\resetvxpg.comp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\shaders\concentric.glsl" />
+    <None Include="..\shaders\gmm.glsl" />
+    <None Include="..\shaders\raycommon.glsl" />
+    <None Include="..\shaders\reservoir.glsl" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="..\misc\glsl.targets" />
+  </ImportGroup>
+</Project>

@@ -1,0 +1,6 @@
+bin/
+.git/
+# 忽略build目录下的.vs、Release、x64
+build/.vs/
+build/Release/
+build/x64/

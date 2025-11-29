@@ -1,0 +1,193 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="源文件">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="头文件">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="base">
+      <UniqueIdentifier>{d9b1ae4e-7582-4b04-a108-a31d86b8fe58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{36ae5cf6-a090-4253-a0b2-9f3ca515a1bb}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\main.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\external\imgui\imgui.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\external\imgui\imgui_demo.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\external\imgui\imgui_draw.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\external\imgui\imgui_widgets.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanAndroid.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanBuffer.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanDebug.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanDevice.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\vulkanexamplebase.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanglTFModel.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanRaytracingSample.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanSwapChain.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanTexture.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanTools.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+    <ClCompile Include="..\base\VulkanUIOverlay.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\base\benchmark.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\camera.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\frustum.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\keycodes.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\threadpool.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanAndroid.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanBuffer.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanDebug.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanDevice.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\vulkanexamplebase.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanFrameBuffer.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanglTFModel.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanHeightmap.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanInitializers.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanRaytracingSample.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanSwapChain.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanTexture.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanTools.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\VulkanUIOverlay.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\base\CommandLineParser.hpp">
+      <Filter>base</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <GLSLShader Include="..\shaders\blur.frag">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\composition.frag">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\fullscreen.vert">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\gbuffer.frag">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\gbuffer.vert">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\composition.vert">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\pathtracing.frag">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\reset.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\prepare.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\preparecdf.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\learngmm.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\learnsgm.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\preparevxpg.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\resetvxpg.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\shaders\raycommon.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="..\shaders\reservoir.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="..\shaders\gmm.glsl">
+      <Filter>shaders</Filter>
+    </None>
+    <None Include="..\shaders\concentric.glsl">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
+</Project>

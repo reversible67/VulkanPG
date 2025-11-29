@@ -1,0 +1,34 @@
+#version 460
+
+layout (local_size_x = 64) in;
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "raycommon.glsl"
+
+layout (push_constant, scalar) uniform PushConstants
+{
+	int modelIndex;
+	vec3 gridBegin;
+	ivec3 gridDim;
+	float cellSize;
+};
+
+layout (binding = 7, scalar) buffer BoundingVoxels { BoundingVoxel boundingVoxels[]; };
+
+void main()
+{
+	uint voxelIndex = gl_GlobalInvocationID.x;
+	if (voxelIndex >= gridDim.x * gridDim.y * gridDim.z)
+		return;
+
+	// Initialize bounding voxel with max/min float values in uint representation
+	boundingVoxels[voxelIndex].aabbMinX = floatBitsToUint(1e30);
+	boundingVoxels[voxelIndex].aabbMinY = floatBitsToUint(1e30);
+	boundingVoxels[voxelIndex].aabbMinZ = floatBitsToUint(1e30);
+	boundingVoxels[voxelIndex].aabbMaxX = floatBitsToUint(-1e30);
+	boundingVoxels[voxelIndex].aabbMaxY = floatBitsToUint(-1e30);
+	boundingVoxels[voxelIndex].aabbMaxZ = floatBitsToUint(-1e30);
+	boundingVoxels[voxelIndex].totalIrradiance = 0.0;
+	boundingVoxels[voxelIndex].sampleCount = 0;
+}

@@ -1,0 +1,30 @@
+#version 460
+
+layout (local_size_x = 64) in;
+
+#extension GL_GOOGLE_include_directive : enable
+
+#include "raycommon.glsl"
+
+layout (push_constant, scalar) uniform PushConstants
+{
+	int modelIndex;
+	vec3 gridBegin;
+	ivec3 gridDim;
+	float cellSize;
+};
+
+layout (binding = 1, scalar) buffer IncidentRadianceGrid { IncidentRadianceGridCell incidentRadianceGridCells[]; };
+
+void main()
+{
+	uint cellIndex = gl_WorkGroupID.x;
+	uint i = gl_LocalInvocationID.x;
+
+	uint count = incidentRadianceGridCells[cellIndex].incidentRadianceCount[i];
+	if (count > 0)
+		incidentRadianceGridCells[cellIndex].incidentRadiance[i] = incidentRadianceGridCells[cellIndex].incidentRadianceSum[i] / count;
+	//¼Óelse»áÂý3±¶
+	//else
+	//	incidentRadianceGridCells[cellIndex].incidentRadiance[i] = 0.0;
+}
