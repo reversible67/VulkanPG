@@ -1171,6 +1171,8 @@ void main()
 					float voxelPdf;
 					int selectedVoxel = sampleVoxel(hitPos, hitNormal, seed, voxelPdf);
 					
+					bool vxpgSuccess = false;  // 标记VXPG是否成功采样
+					
 					if (selectedVoxel >= 0 && voxelPdf > 0.0)
 					{
 						vec3 sampledPos, sampledNormal;
@@ -1184,40 +1186,38 @@ void main()
 							
 							if (nDotL > 0.0)
 							{
-								// VXPG PDF: Use cosine-weighted to match BRDF and reduce variance
-								// Even though VXPG samples based on voxel importance,
-								// using cosine-weighted PDF gives better variance reduction
-								pdf = nDotL / M_PI * ubo.probability;
+								// VXPG采样成功
+								vxpgSuccess = true;
+								// VXPG PDF：使用cosine-weighted匹配BRDF
+								pdf = nDotL / M_PI;
 							}
-							else
-							{
-								// Fallback to BSDF sampling if direction is invalid
-								direction = sampleBRDF(uv.x, uv.y, rnd(seed), hitView, hitNormal, hitMaterial);
-								nDotL = max(0.0, dot(hitNormal, direction));
-								pdf = pdfBRDF(hitView, hitNormal, direction, hitMaterial) * (1.0 - ubo.probability);
-							}
-						}
-						else
-						{
-							// Fallback to BSDF sampling if no geometry found
-							direction = sampleBRDF(uv.x, uv.y, rnd(seed), hitView, hitNormal, hitMaterial);
-							nDotL = max(0.0, dot(hitNormal, direction));
-							pdf = pdfBRDF(hitView, hitNormal, direction, hitMaterial) * (1.0 - ubo.probability);
 						}
 					}
-					else
+					
+					// 如果VXPG失败，fallback到BRDF采样
+					if (!vxpgSuccess)
 					{
-						// Fallback to BSDF sampling
 						direction = sampleBRDF(uv.x, uv.y, rnd(seed), hitView, hitNormal, hitMaterial);
 						nDotL = max(0.0, dot(hitNormal, direction));
-						pdf = pdfBRDF(hitView, hitNormal, direction, hitMaterial) * (1.0 - ubo.probability);
+						pdf = pdfBRDF(hitView, hitNormal, direction, hitMaterial);
 					}
 					
 					if (nDotL <= 0.0 || pdf <= 0.0)
 						break;
 					
-					if (GUIDING_MIS == 1)
-						pdf += pdfBRDF(hitView, hitNormal, direction, hitMaterial) * (1.0 - ubo.probability);
+					// MIS权重计算：只在VXPG成功时使用MIS
+					if (vxpgSuccess && GUIDING_MIS == 1)
+					{
+						float pdf_brdf = pdfBRDF(hitView, hitNormal, direction, hitMaterial);
+						// Balance Heuristic: pdf_mis = p * pdf_vxpg + (1-p) * pdf_brdf
+						pdf = ubo.probability * pdf + (1.0 - ubo.probability) * pdf_brdf;
+					}
+					else if (vxpgSuccess)
+					{
+						// VXPG成功但不用MIS：乘以选择概率
+						pdf = pdf * ubo.probability;
+					}
+					// 如果VXPG失败：已经是BRDF的PDF，不需要额外处理
 				}
 				else if (SSPG == 1)
 				{

@@ -942,6 +942,7 @@ public:
 				attachmentDescs[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 				attachmentDescs[i].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 				attachmentDescs[i].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+				// 恢复原样：UNDEFINED表示可以丢弃内容，CLEAR会清除
 				attachmentDescs[i].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			}
@@ -1541,6 +1542,47 @@ public:
 					0, nullptr,
 					5, barriersBack
 				);
+			}
+			
+			// 跟踪NRD状态并在禁用时修复layout（只在第一个command buffer中执行）
+			if (i == 0)
+			{
+				static bool nrdWasEnabledLastFrame = false;
+				bool nrdCurrentlyEnabled = (useNRD && nrdDenoiser.isInitialized());
+				
+				// 如果NRD从启用变为禁用，需要重置blur framebuffer的layout
+				if (nrdWasEnabledLastFrame && !nrdCurrentlyEnabled)
+				{
+					VkImageMemoryBarrier blurBarrier = {};
+					blurBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+					blurBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+					blurBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+					blurBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;  // 安全：忽略之前的内容
+					blurBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					blurBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					blurBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					blurBarrier.image = frameBuffers.blur.color.image;
+					blurBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					blurBarrier.subresourceRange.baseMipLevel = 0;
+					blurBarrier.subresourceRange.levelCount = 1;
+					blurBarrier.subresourceRange.baseArrayLayer = 0;
+					blurBarrier.subresourceRange.layerCount = 1;
+					
+					vkCmdPipelineBarrier(
+						drawCmdBuffers[i],
+						VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+						VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+						0,
+						0, nullptr,
+						0, nullptr,
+						1, &blurBarrier
+					);
+					
+					std::cout << "[FIX] Reset blur framebuffer layout after disabling NRD" << std::endl;
+				}
+				
+				// 更新状态
+				nrdWasEnabledLastFrame = nrdCurrentlyEnabled;
 			}
 
 			/*
@@ -2948,7 +2990,15 @@ public:
 				preparePipelines();
 			}
 			if (overlay->checkBox("Path Guiding", &specializationData.pathGuiding))
+			{
+				std::cout << "[PG] Toggled to: " << specializationData.pathGuiding << std::endl;
 				preparePipelines();
+				vkDeviceWaitIdle(device);  // 等待GPU完成旧的command buffers
+				reset();  // 清除VXPG或其他模式的残留数据，重置grid
+				buildCommandBuffers();  // 重建command buffers以更新layout转换
+				buildComputeCommandBuffers();  // Path Guiding需要compute command buffers
+				std::cout << "[PG] Command buffers rebuilt and data reset" << std::endl;
+			}
 			if (overlay->button("Reset"))
 				reset();
 			if (overlay->checkBox("Hashing", &specializationData.hashing))
@@ -2960,7 +3010,15 @@ public:
 			if (overlay->checkBox("SGM", &specializationData.sgm))
 				preparePipelines();
 			if (overlay->checkBox("VXPG", &specializationData.vxpg))
+			{
+				std::cout << "[VXPG] Toggled to: " << specializationData.vxpg << std::endl;
 				preparePipelines();
+				vkDeviceWaitIdle(device);  // 等待GPU完成旧的command buffers
+				reset();  // 清除PG残留数据，重置grid
+				buildCommandBuffers();  // 重建command buffers以更新layout转换
+				buildComputeCommandBuffers();  // VXPG需要compute command buffers
+				std::cout << "[VXPG] Command buffers rebuilt and data reset" << std::endl;
+			}
 			overlay->sliderFloat("Probability", &uboComposition.probability, 0.0f, 1.0f);
 			if (overlay->checkBox("Guiding MIS", &specializationData.guidingMIS))
 				preparePipelines();
