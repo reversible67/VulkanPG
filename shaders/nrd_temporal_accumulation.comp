@@ -1,0 +1,102 @@
+#version 450
+
+// 简化的NRD时域累积降噪shader
+// 这是一个简单但有效的降噪方法，使用历史帧累积
+
+layout (local_size_x = 16, local_size_y = 16) in;
+
+// 输入：当前帧的NRD数据
+layout (binding = 0, rgba16f) uniform readonly image2D inRadianceHitDist;
+layout (binding = 1, rgba16f) uniform readonly image2D inNormalRoughness;
+layout (binding = 2, rg16f) uniform readonly image2D inMotionVector;
+layout (binding = 3, r32f) uniform readonly image2D inViewZ;
+
+// 输入：历史帧
+layout (binding = 4, rgba16f) uniform readonly image2D inHistory;
+
+// 输出：降噪后的结果
+layout (binding = 5, rgba16f) uniform writeonly image2D outDenoised;
+
+// 输出：更新的历史
+layout (binding = 6, rgba16f) uniform writeonly image2D outHistory;
+
+// Push constants
+layout (push_constant) uniform PushConstants {
+    uint frameIndex;
+    float accumulationWeight;  // 历史权重，通常0.9-0.95
+    uint resetHistory;         // 是否重置历史
+    uint padding;
+} pc;
+
+// 验证历史有效性
+bool isHistoryValid(ivec2 coord, ivec2 historyCoord, vec3 normal, float depth) {
+    // 边界检查
+    ivec2 size = imageSize(inHistory);
+    if (historyCoord.x < 0 || historyCoord.y < 0 || 
+        historyCoord.x >= size.x || historyCoord.y >= size.y) {
+        return false;
+    }
+    
+    // 读取历史帧的法线和深度（如果需要更严格的验证）
+    // 简化版：只检查边界
+    return true;
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(outDenoised);
+    
+    if (coord.x >= size.x || coord.y >= size.y)
+        return;
+    
+    // 读取当前帧数据
+    vec4 radianceHitDist = imageLoad(inRadianceHitDist, coord);
+    vec3 currentRadiance = radianceHitDist.rgb;
+    float hitDistance = radianceHitDist.a;
+    
+    vec4 normalRoughness = imageLoad(inNormalRoughness, coord);
+    vec3 normal = normalRoughness.rgb * 2.0 - 1.0; // 解码法线
+    float roughness = normalRoughness.a;
+    
+    vec2 motionVector = imageLoad(inMotionVector, coord).rg;
+    float viewZ = imageLoad(inViewZ, coord).r;
+    
+    // 计算历史坐标（重投影）
+    // 临时测试：禁用motion vector，直接使用当前坐标
+    // 这样静止相机时应该能完美累积
+    vec2 uv = (vec2(coord) + 0.5) / vec2(size);
+    // vec2 historyUV = uv + motionVector;  // 暂时禁用
+    vec2 historyUV = uv;  // 测试：不使用motion vector
+    ivec2 historyCoord = ivec2(historyUV * vec2(size));
+    
+    vec3 denoisedRadiance;
+    
+    // 如果需要重置历史或历史无效
+    if (pc.resetHistory != 0 || !isHistoryValid(coord, historyCoord, normal, viewZ)) {
+        // 直接使用当前帧
+        denoisedRadiance = currentRadiance;
+    }
+    else {
+        // 读取历史
+        vec4 historyData = imageLoad(inHistory, historyCoord);
+        vec3 historyRadiance = historyData.rgb;
+        
+        // 调试：如果history全是0，说明buffer没有持久化
+        // if (length(historyRadiance) < 0.001 && coord.x == 100 && coord.y == 100) {
+        //     // 这会在第2帧及以后触发，如果看到噪声说明history丢失了
+        // }
+        
+        // 时域累积：简单混合历史和当前帧
+        // accumulationWeight = 0.9 意味着 90%历史 + 10%当前
+        float alpha = 1.0 - pc.accumulationWeight;  // 0.1
+        
+        // 简化版本：不使用adaptive alpha和方差裁剪，先验证基础累积
+        denoisedRadiance = mix(historyRadiance, currentRadiance, alpha);
+    }
+    
+    // 输出降噪结果
+    imageStore(outDenoised, coord, vec4(denoisedRadiance, hitDistance));
+    
+    // 更新历史（保存当前降噪结果作为下一帧的历史）
+    imageStore(outHistory, coord, vec4(denoisedRadiance, hitDistance));
+}

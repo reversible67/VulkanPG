@@ -69,6 +69,9 @@
     <ClCompile Include="..\base\VulkanUIOverlay.cpp">
       <Filter>base</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\NRDWrapper.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\base\benchmark.hpp">
@@ -131,6 +134,9 @@
     <ClInclude Include="..\base\CommandLineParser.hpp">
       <Filter>base</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\NRDWrapper.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <GLSLShader Include="..\shaders\blur.frag">
@@ -173,6 +179,9 @@
       <Filter>shaders</Filter>
     </GLSLShader>
     <GLSLShader Include="..\shaders\resetvxpg.comp">
+      <Filter>shaders</Filter>
+    </GLSLShader>
+    <GLSLShader Include="..\shaders\nrd_temporal_accumulation.comp">
       <Filter>shaders</Filter>
     </GLSLShader>
   </ItemGroup>

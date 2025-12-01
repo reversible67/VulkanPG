@@ -18,6 +18,12 @@ layout (location = 1) in vec3 inDir;
 layout (location = 0) out vec4 outFragColor;
 layout (location = 1) out uint outHistory;
 
+// NRD denoiser outputs
+layout (location = 2) out vec4 outRadianceHitDist;  // RGB=radiance, A=hitDistance
+layout (location = 3) out vec4 outNormalRoughness;  // RGB=worldNormal*0.5+0.5, A=roughness
+layout (location = 4) out vec2 outMotionVector;     // RG=screenSpaceMotion
+layout (location = 5) out float outViewZ;           // R=viewSpaceZ
+
 layout (binding = 0) uniform sampler2D samplerPosition;
 layout (binding = 1) uniform sampler2D samplerNormal;
 layout (binding = 2) uniform sampler2D samplerWhiteNoise;
@@ -656,6 +662,10 @@ void main()
 	vec3 fragPos = positionTexel.xyz;
 	vec3 normal = texture(samplerNormal, inUV).xyz;
 	vec4 motionTexel = texture(samplerMotion, inUV);
+	
+	// NRD: Track first hit distance
+	float firstHitDistance = 0.0;
+	bool isFirstHit = true;
 
 	uvec2 resolution = textureSize(samplerNormal, 0);
 	int pixel = int(resolution.x * uint(resolution.y * inUV.y) + resolution.x * inUV.x);
@@ -1683,4 +1693,20 @@ void main()
 			//outFragColor.rgb = 0.001 * vec3(sum);
 		}
 	}*/
+	
+	// ============ NRD Denoiser Outputs ============
+	// 输出radiance和hit distance
+	outRadianceHitDist = vec4(outFragColor.rgb, firstHitDistance);
+	
+	// 输出法线（世界空间，编码到[0,1]）和粗糙度
+	vec3 worldNormal = normalize(normal);
+	float roughness = 0.5; // TODO: 从材质获取真实粗糙度
+	outNormalRoughness = vec4(worldNormal * 0.5 + 0.5, roughness);
+	
+	// 输出运动向量（屏幕空间像素）
+	outMotionVector = motionTexel.xy;
+	
+	// 输出视图空间深度 (使用到相机的距离作为近似)
+	vec3 viewDir = fragPos - ubo.viewPos;
+	outViewZ = -length(viewDir);  // 负值因为通常viewZ < 0在相机前方
 }

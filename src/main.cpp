@@ -8,6 +8,7 @@
 
 #include "VulkanRaytracingSample.h"
 #include "VulkanglTFModel.h"
+#include "NRDWrapper.h"
 #include <stb_image.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <opencv2/opencv.hpp>
@@ -151,6 +152,11 @@ public:
 		float depthSharpness = 0.003f;
 		float normalSharpness = 32.0f;
 	} uboBlur;
+	
+	// NRD Denoiser
+	NRDWrapper nrdDenoiser;
+	bool useNRD = false;  // UI控制开关
+	uint32_t nrdFrameIndex = 0;  // NRD专用的连续frameIndex
 
 	VkSemaphore semaphore;
 
@@ -285,6 +291,14 @@ public:
 		} previous;
 	} frameBuffers;
 
+	// NRD input textures (for storing shader outputs)
+	struct {
+		FrameBufferAttachment radianceHitDist;   // R16G16B16A16_SFLOAT
+		FrameBufferAttachment normalRoughness;   // R16G16B16A16_SFLOAT
+		FrameBufferAttachment motionVector;      // R16G16_SFLOAT
+		FrameBufferAttachment viewZ;             // R32_SFLOAT
+	} nrdInputs;
+
 	// One sampler for the frame buffer color attachments
 	VkSampler colorSampler;
 
@@ -326,12 +340,21 @@ public:
 		frameBuffers.previous.depth.destroy(device);
 		frameBuffers.previous.history.destroy(device);
 		frameBuffers.previous.color.destroy(device);
+		
+		// NRD inputs
+		nrdInputs.radianceHitDist.destroy(device);
+		nrdInputs.normalRoughness.destroy(device);
+		nrdInputs.motionVector.destroy(device);
+		nrdInputs.viewZ.destroy(device);
 
 		// Framebuffers
 		frameBuffers.gBuffer.destroy(device);
 		frameBuffers.rayTracing.destroy(device);
 		frameBuffers.blur.destroy(device);
 		frameBuffers.previous.destroy(device);
+		
+		// NRD wrapper cleanup
+		nrdDenoiser.destroy();
 
 		vkDestroySemaphore(device, semaphore, nullptr);
 
@@ -720,13 +743,22 @@ public:
 		createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &frameBuffers.rayTracing.color, ssaoWidth, ssaoHeight);				// Color
 		createAttachment(VK_FORMAT_R8_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &frameBuffers.rayTracing.history, width, height);
 
-		// SSAO blur
-		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &frameBuffers.blur.color, width, height);					// Color
+		// SSAO blur (需要STORAGE_BIT因为NRD会写入它)
+		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT), &frameBuffers.blur.color, width, height);
 
 		createAttachment(VK_FORMAT_R32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &frameBuffers.previous.depth, ssaoWidth, ssaoHeight);
 		createAttachment(VK_FORMAT_R8_UINT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &frameBuffers.previous.history, ssaoWidth, ssaoHeight);
 
 		createAttachment(VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, &frameBuffers.previous.color, ssaoWidth, ssaoHeight);
+
+		// NRD input textures (需要STORAGE_BIT用于compute shader)
+		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT), &nrdInputs.radianceHitDist, ssaoWidth, ssaoHeight);
+		createAttachment(VK_FORMAT_R16G16B16A16_SFLOAT, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT), &nrdInputs.normalRoughness, ssaoWidth, ssaoHeight);
+		createAttachment(VK_FORMAT_R16G16_SFLOAT, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT), &nrdInputs.motionVector, ssaoWidth, ssaoHeight);
+		createAttachment(VK_FORMAT_R32_SFLOAT, (VkImageUsageFlagBits)(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT), &nrdInputs.viewZ, ssaoWidth, ssaoHeight);
+		
+		// 注意：NRD的history buffer layout已经在NRDWrapper::createHistoryTexture()中初始化到GENERAL
+		// 其他textures的layout会在第一次render pass中自动转换
 
 		// Render passes
 
@@ -814,9 +846,9 @@ public:
 			VK_CHECK_RESULT(vkCreateFramebuffer(device, &fbufCreateInfo, nullptr, &frameBuffers.gBuffer.frameBuffer));
 		}
 
-		// SSAO
+		// SSAO (Ray Tracing with NRD outputs)
 		{
-			std::array<VkAttachmentDescription, 2> attachmentDescs = {};
+			std::array<VkAttachmentDescription, 6> attachmentDescs = {};
 
 			// Init attachment properties
 			for (uint32_t i = 0; i < static_cast<uint32_t>(attachmentDescs.size()); i++)
@@ -830,8 +862,18 @@ public:
 				attachmentDescs[i].finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 			}
 
+			// Attachment 0: Color
 			attachmentDescs[0].format = frameBuffers.rayTracing.color.format;
+			// Attachment 1: History
 			attachmentDescs[1].format = frameBuffers.rayTracing.history.format;
+			// Attachment 2: Radiance + Hit Distance (NRD)
+			attachmentDescs[2].format = nrdInputs.radianceHitDist.format;
+			// Attachment 3: Normal + Roughness (NRD)
+			attachmentDescs[3].format = nrdInputs.normalRoughness.format;
+			// Attachment 4: Motion Vector (NRD)
+			attachmentDescs[4].format = nrdInputs.motionVector.format;
+			// Attachment 5: ViewZ (NRD)
+			attachmentDescs[5].format = nrdInputs.viewZ.format;
 
 			std::vector<VkAttachmentReference> colorReferences;
 			for (uint32_t i = 0; i < static_cast<uint32_t>(attachmentDescs.size()); ++i)
@@ -873,6 +915,10 @@ public:
 			std::array<VkImageView, static_cast<uint32_t>(attachmentDescs.size())> attachments;
 			attachments[0] = frameBuffers.rayTracing.color.view;
 			attachments[1] = frameBuffers.rayTracing.history.view;
+			attachments[2] = nrdInputs.radianceHitDist.view;
+			attachments[3] = nrdInputs.normalRoughness.view;
+			attachments[4] = nrdInputs.motionVector.view;
+			attachments[5] = nrdInputs.viewZ.view;
 
 			VkFramebufferCreateInfo fbufCreateInfo = vks::initializers::framebufferCreateInfo();
 			fbufCreateInfo.renderPass = frameBuffers.rayTracing.renderPass;
@@ -1216,11 +1262,18 @@ public:
 
 	void buildCommandBuffers() override
 	{
+		static int buildCount = 0;
+		std::cout << "[DEBUG] buildCommandBuffers called, count=" << ++buildCount 
+		          << ", nrdFrameIndex=" << nrdFrameIndex << std::endl;
+		
 		VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 		for (int32_t i = 0; i < drawCmdBuffers.size(); ++i)
 		{
 			VK_CHECK_RESULT(vkBeginCommandBuffer(drawCmdBuffers[i], &cmdBufInfo));
+			
+			// 注意：NRD相关images的layout初始化已经在prepareOffscreenFramebuffers中完成
+			// 这里不需要重复初始化
 
 			/*
 				Offscreen SSAO generation
@@ -1276,16 +1329,22 @@ public:
 				vkCmdWriteTimestamp(drawCmdBuffers[i], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, i * numTimestamps + 1);
 
 				/*
-					Second pass: SSAO generation
+					Second pass: Ray Tracing with NRD outputs
 				*/
 
-				clearValues[2].depthStencil = { 1.0f, 0 };
+				// Prepare clear values for Ray Tracing pass (6 attachments)
+				clearValues[0].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };  // color
+				clearValues[1].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };  // history
+				clearValues[2].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };  // radiance+hitDist (NRD)
+				clearValues[3].color = { { 0.0f, 0.0f, 0.0f, 1.0f } };  // normal+roughness (NRD)
+				clearValues[4].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };  // motionVector (NRD)
+				clearValues[5].color = { { 0.0f, 0.0f, 0.0f, 0.0f } };  // viewZ (NRD)
 
 				renderPassBeginInfo.framebuffer = frameBuffers.rayTracing.frameBuffer;
 				renderPassBeginInfo.renderPass = frameBuffers.rayTracing.renderPass;
 				renderPassBeginInfo.renderArea.extent.width = frameBuffers.rayTracing.width;
 				renderPassBeginInfo.renderArea.extent.height = frameBuffers.rayTracing.height;
-				renderPassBeginInfo.clearValueCount = 3;
+				renderPassBeginInfo.clearValueCount = 6;  // Changed from 3 to 6 for NRD outputs
 				renderPassBeginInfo.pClearValues = clearValues.data();
 
 				vkCmdWriteTimestamp(drawCmdBuffers[i], VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPool, i * numTimestamps + 2);
@@ -1335,6 +1394,153 @@ public:
 				vkCmdEndRenderPass(drawCmdBuffers[i]);
 
 				vkCmdWriteTimestamp(drawCmdBuffers[i], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPool, i * numTimestamps + 5);
+			}
+
+			/*
+				NRD Denoising pass (if enabled)
+			*/
+			if (useNRD && nrdDenoiser.isInitialized())
+			{
+				// 设置NRD的输入和输出纹理
+				nrdDenoiser.setInputTextures(
+					nrdInputs.radianceHitDist.view,
+					nrdInputs.normalRoughness.view,
+					nrdInputs.viewZ.view,
+					nrdInputs.motionVector.view
+				);
+				
+				// 让NRD直接输出到blur的framebuffer，这样composition就能看到NRD的结果
+				nrdDenoiser.setOutputTexture(frameBuffers.blur.color.view);
+				
+				// 转换image layouts到GENERAL（compute shader需要）
+				VkImageMemoryBarrier barriers[5] = {};
+				
+				// NRD inputs: SHADER_READ_ONLY_OPTIMAL -> GENERAL
+				// Ray Tracing pass之后，这些attachments被转换到SHADER_READ_ONLY_OPTIMAL
+				for (int j = 0; j < 4; j++)
+				{
+					barriers[j].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+					barriers[j].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+					barriers[j].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+					barriers[j].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					barriers[j].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+					barriers[j].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					barriers[j].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					barriers[j].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					barriers[j].subresourceRange.baseMipLevel = 0;
+					barriers[j].subresourceRange.levelCount = 1;
+					barriers[j].subresourceRange.baseArrayLayer = 0;
+					barriers[j].subresourceRange.layerCount = 1;
+				}
+				barriers[0].image = nrdInputs.radianceHitDist.image;
+				barriers[1].image = nrdInputs.normalRoughness.image;
+				barriers[2].image = nrdInputs.viewZ.image;
+				barriers[3].image = nrdInputs.motionVector.image;
+				
+				// blur output: SHADER_READ_ONLY_OPTIMAL -> GENERAL
+				barriers[4].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				barriers[4].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				barriers[4].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+				barriers[4].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				barriers[4].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+				barriers[4].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				barriers[4].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				barriers[4].image = frameBuffers.blur.color.image;
+				barriers[4].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				barriers[4].subresourceRange.baseMipLevel = 0;
+				barriers[4].subresourceRange.levelCount = 1;
+				barriers[4].subresourceRange.baseArrayLayer = 0;
+				barriers[4].subresourceRange.layerCount = 1;
+				
+				vkCmdPipelineBarrier(
+					drawCmdBuffers[i],
+					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+					0,
+					0, nullptr,
+					0, nullptr,
+					5, barriers
+				);
+				
+				// Get current and previous matrices
+				glm::mat4 currentView = camera.matrices.view;
+				glm::mat4 currentProj = camera.matrices.perspective;
+				
+				// Store previous matrices (static to persist between frames)
+				static glm::mat4 prevView = currentView;
+				static glm::mat4 prevProj = currentProj;
+				
+				// 只在第一个command buffer时输出（避免重复）
+				if (i == 0 && (nrdFrameIndex < 10 || nrdFrameIndex % 60 == 0))
+				{
+					std::cout << "[NRD] Continuous frame " << nrdFrameIndex << std::endl;
+				}
+				
+				// Call NRD denoise
+				nrdDenoiser.denoise(
+					drawCmdBuffers[i],
+					nrdFrameIndex,  // 使用成员变量nrdFrameIndex
+					currentView,
+					currentProj,
+					prevView,
+					prevProj
+				);
+				
+				// Only update on first command buffer
+				if (i == 0)
+				{
+					prevView = currentView;
+					prevProj = currentProj;
+				}
+				
+				// 转换image layouts回到原来的状态
+				VkImageMemoryBarrier barriersBack[5] = {};
+				
+				// NRD inputs: GENERAL -> SHADER_READ_ONLY_OPTIMAL
+				for (int j = 0; j < 4; j++)
+				{
+					barriersBack[j].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+					barriersBack[j].srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+					barriersBack[j].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+					barriersBack[j].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+					barriersBack[j].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+					barriersBack[j].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					barriersBack[j].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+					barriersBack[j].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+					barriersBack[j].subresourceRange.baseMipLevel = 0;
+					barriersBack[j].subresourceRange.levelCount = 1;
+					barriersBack[j].subresourceRange.baseArrayLayer = 0;
+					barriersBack[j].subresourceRange.layerCount = 1;
+				}
+				barriersBack[0].image = nrdInputs.radianceHitDist.image;
+				barriersBack[1].image = nrdInputs.normalRoughness.image;
+				barriersBack[2].image = nrdInputs.viewZ.image;
+				barriersBack[3].image = nrdInputs.motionVector.image;
+				
+				// blur output: GENERAL -> SHADER_READ_ONLY_OPTIMAL
+				barriersBack[4].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+				barriersBack[4].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+				barriersBack[4].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+				barriersBack[4].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+				barriersBack[4].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+				barriersBack[4].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				barriersBack[4].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+				barriersBack[4].image = frameBuffers.blur.color.image;
+				barriersBack[4].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+				barriersBack[4].subresourceRange.baseMipLevel = 0;
+				barriersBack[4].subresourceRange.levelCount = 1;
+				barriersBack[4].subresourceRange.baseArrayLayer = 0;
+				barriersBack[4].subresourceRange.layerCount = 1;
+				
+				vkCmdPipelineBarrier(
+					drawCmdBuffers[i],
+					VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+					VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+					0,
+					0, nullptr,
+					0, nullptr,
+					5, barriersBack
+				);
 			}
 
 			/*
@@ -1783,11 +1989,12 @@ public:
 		shaderStages[1].pSpecializationInfo = &specializationInfo;
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCreateInfo, nullptr, &pipelines.composition));
 
-		// SSAO generation pipeline
+		// SSAO generation pipeline (Ray Tracing with NRD outputs)
 		{
 			pipelineCreateInfo.renderPass = frameBuffers.rayTracing.renderPass;
 			pipelineCreateInfo.layout = pipelineLayouts.rayTracing;
-			std::array<VkPipelineColorBlendAttachmentState, 2> blendAttachmentStates;
+			// 6个color attachments: color, history, radianceHitDist, normalRoughness, motionVector, viewZ
+			std::array<VkPipelineColorBlendAttachmentState, 6> blendAttachmentStates;
 			for (auto i = 0; i < blendAttachmentStates.size(); ++i)
 				blendAttachmentStates[i] = vks::initializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
 			colorBlendState.attachmentCount = static_cast<uint32_t>(blendAttachmentStates.size());
@@ -1993,6 +2200,12 @@ public:
 
 	void draw()
 	{
+		// 如果使用NRD，需要每帧重建command buffers以更新frameIndex
+		if (useNRD)
+		{
+			buildCommandBuffers();
+		}
+		
 		// Wait for rendering finished
 		VkPipelineStageFlags waitStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
@@ -2090,6 +2303,12 @@ public:
 		//printf("Composition %fms\n", (timestamps[7] - timestamps[6]) / 1e6);
 
 		VulkanExampleBase::submitFrame();
+		
+		// 每帧递增NRD frameIndex（在NRDWrapper内部管理）
+		if (useNRD)
+		{
+			nrdDenoiser.incrementFrameIndex();
+		}
 	}
 
 	// Take a screenshot from the current swapchain image
@@ -2294,6 +2513,20 @@ public:
 		preparePipelines();
 		buildCommandBuffers();
 		buildComputeCommandBuffers();
+		
+		// 初始化NRD Denoiser
+		std::cout << "[NRD Integration] Initializing NRD denoiser..." << std::endl;
+		if (nrdDenoiser.initialize(device, physicalDevice, width, height))
+		{
+			std::cout << "[NRD Integration] NRD denoiser initialized successfully!" << std::endl;
+			std::cout << "[NRD Integration] NRD can work with Path Guiding and VXPG independently" << std::endl;
+			std::cout << "[NRD Integration] Toggle 'Use NRD' in Denoiser panel to enable" << std::endl;
+		}
+		else
+		{
+			std::cerr << "[NRD Integration] Failed to initialize NRD denoiser!" << std::endl;
+		}
+		
 		prepared = true;
 
 		// Semaphore for compute & graphics sync
@@ -2661,6 +2894,27 @@ public:
 		}
 		if (overlay->header("Denoiser"))
 		{
+			// NRD Denoiser控制
+			bool prevUseNRD = useNRD;
+			overlay->checkBox("Use NRD", &useNRD);
+			// 检测状态改变，重置frameIndex
+			if (useNRD && !prevUseNRD)
+			{
+				nrdFrameIndex = 0;
+				nrdDenoiser.resetFrameIndex();  // 重置NRD内部的frame counter
+				std::cout << "[NRD] Enabled - Reset internal frame index" << std::endl;
+			}
+			else if (!useNRD && prevUseNRD)
+			{
+				std::cout << "[NRD] Disabled" << std::endl;
+			}
+			
+			if (useNRD)
+			{
+				overlay->text("NRD Status: Enabled");
+				overlay->text("(Works with Path Guiding & VXPG)");
+			}
+			
 			overlay->sliderInt("History Length", &uboComposition.historyLength, 1, 50);
 			if (overlay->checkBox("Blur", &uboBlur.blur))
 				updateUniformBufferBlur();
@@ -2826,7 +3080,7 @@ public:
 				uboGBuffer.probePos.z -= 0.2f;
 			if (overlay->button("+Z"))
 				uboGBuffer.probePos.z += 0.2f;
-			printf("%f %f %f\n", uboGBuffer.probePos.x, uboGBuffer.probePos.y, uboGBuffer.probePos.z);
+			// printf("%f %f %f\n", uboGBuffer.probePos.x, uboGBuffer.probePos.y, uboGBuffer.probePos.z);  // 已屏蔽probe位置打印
 		}
 	}
 };
